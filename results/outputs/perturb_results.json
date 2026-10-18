@@ -1,0 +1,100 @@
+[
+ {
+  "perturbation": "clean",
+  "severity": "none",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 1.0
+ },
+ {
+  "perturbation": "noise",
+  "severity": "sigma=15",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.967
+ },
+ {
+  "perturbation": "noise",
+  "severity": "sigma=35",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.967
+ },
+ {
+  "perturbation": "noise",
+  "severity": "sigma=60",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.967
+ },
+ {
+  "perturbation": "jpeg",
+  "severity": "q=50",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 1.0
+ },
+ {
+  "perturbation": "jpeg",
+  "severity": "q=25",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 1.0
+ },
+ {
+  "perturbation": "jpeg",
+  "severity": "q=10",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.967
+ },
+ {
+  "perturbation": "rotate",
+  "severity": "7deg",
+  "n": 30,
+  "probe_rate": 0.933,
+  "ocr_rate": 1.0
+ },
+ {
+  "perturbation": "rotate",
+  "severity": "15deg",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.933
+ },
+ {
+  "perturbation": "occlude",
+  "severity": "10%",
+  "n": 30,
+  "probe_rate": 0.733,
+  "ocr_rate": 0.4
+ },
+ {
+  "perturbation": "occlude",
+  "severity": "20%",
+  "n": 30,
+  "probe_rate": 0.733,
+  "ocr_rate": 0.367
+ },
+ {
+  "perturbation": "occlude",
+  "severity": "30%",
+  "n": 30,
+  "probe_rate": 0.833,
+  "ocr_rate": 0.3
+ },
+ {
+  "perturbation": "blur",
+  "severity": "2x",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.867
+ },
+ {
+  "perturbation": "blur",
+  "severity": "4x",
+  "n": 30,
+  "probe_rate": 0.967,
+  "ocr_rate": 0.4
+ }
+]
