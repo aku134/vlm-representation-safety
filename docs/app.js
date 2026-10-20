@@ -23,7 +23,7 @@
     blurb: document.getElementById("blurb"),
     statRow: document.getElementById("stat-row"),
     cbBody: document.getElementById("cb-tbody"),
-    takeaways: document.getElementById("takeaways"),
+    takeaways: document.getElementById("takeaways-list"),
     cites: document.getElementById("cites"),
   };
 

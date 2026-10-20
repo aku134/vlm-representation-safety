@@ -231,10 +231,8 @@
     }
   ],
   "takeaways": [
-    "Attack: render a harmful instruction into pixels; carrier text stays benign.",
-    "Activation probe: small classifier on layer-22 hidden states that detects a harmfulness signal the VLM already encodes.",
-    "Circuit breaker: LoRA that reroutes harmful hidden states so generation collapses (refusal/noise), while retain loss keeps benign answers intact.",
-    "Win: the probe\u2019s harmfulness signal survives blur/occlusion; OCR keyword filters fail open.",
-    "Honest miss: ported circuit-breaker LoRA did not reduce comply on the attack that matters."
+    "Win: under blur and occlusion the activation probe still detects harmfulness; OCR often does not.",
+    "Why: the probe reads the model\u2019s representations; OCR needs recoverable text in the image.",
+    "Miss: circuit-breaker LoRA shifted internals but did not clearly reduce compliance on the attack that matters."
   ]
 }

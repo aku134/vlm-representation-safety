@@ -6,6 +6,15 @@ Representation-level harmfulness detection for vision-language models under typo
 
 **Live demo:** [aku134.github.io/vlm-representation-safety](https://aku134.github.io/vlm-representation-safety/) — static perturbation explorer (no GPU; precomputed rates).
 
+**Interactive tool (GPU):** upload an image and compare probe vs OCR harmfulness decisions:
+
+```bash
+# from the project root (CUDA / Colab T4 recommended)
+python tool_probe_ocr.py
+```
+
+Hugging Face Space scaffold is under `space/` (Gradio + T4). Push that folder to a new Space to host a public checker.
+
 ---
 
 ## Motivation
@@ -87,6 +96,18 @@ results/outputs/        # eval summaries, perturb rates, chart, train log
 ---
 
 ## Running
+
+**Probe vs OCR tool (GPU):**
+
+```bash
+pip install -U transformers accelerate qwen-vl-utils pillow scikit-learn joblib gradio
+# needs results/outputs/probe.joblib (or outputs/probe.joblib)
+python tool_probe_ocr.py
+```
+
+Upload a typographic image (or pick a held-out example), optionally perturb it, and see:
+- activation probe → HARMFUL / not harmful  
+- OCR keyword filter → HARMFUL / not harmful  
 
 **Colab (GPU):** open `train_colab.ipynb`, select a T4 runtime, upload a `colab_upload.zip` produced by `src/pack_for_colab.py`, and run the cells.
 

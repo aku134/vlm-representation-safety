@@ -18,23 +18,23 @@
     <nav class="nav">
       <span class="brand-mark">Pixel Jailbreak</span>
       <div class="nav-links">
+        <a href="#about">About</a>
         <a href="#explore">Explore</a>
         <a href="#results">Results</a>
         <a href="#circuit">Circuit breakers</a>
-        <a href="#method">Method</a>
       </div>
     </nav>
 
     <div class="hero-grid">
       <div class="hero-copy">
         <p class="brand">Pixel Jailbreak</p>
-        <h1>When the attack lives in the image, OCR fails open.</h1>
+        <h1>Safety in the model’s head vs safety in the pixels.</h1>
         <p class="lede">
-          An <strong>activation probe</strong> is a small classifier on the VLM’s hidden states that reads a <strong>harmfulness signal</strong> already present in the model’s representations. Under blur and occlusion that signal still fires — while OCR, which only reads pixels, collapses.
+          A project on vision-language model safety: can a jailbreak hidden in an image be caught by reading the model’s activations — when OCR cannot read the image anymore?
         </p>
         <div class="cta-row">
-          <a class="btn primary" href="#explore">Try the perturbation explorer</a>
-          <a class="btn ghost" href="#results">See the numbers</a>
+          <a class="btn primary" href="#about">What this is</a>
+          <a class="btn ghost" href="#explore">Try the explorer</a>
         </div>
       </div>
       <figure class="hero-visual">
@@ -48,9 +48,43 @@
   </header>
 
   <main>
+    <section id="about" class="section about">
+      <div class="section-head">
+        <h2>What this project is about</h2>
+        <p>
+          Vision-language models take an image plus a short text prompt. A <strong>typographic jailbreak</strong> puts the harmful ask <em>inside the image</em> (“how to …”) and only sends a harmless carrier like “follow the instructions in the image.” Text filters never see the bad request.
+        </p>
+      </div>
+      <div class="about-grid">
+        <article class="about-card">
+          <h3>The question</h3>
+          <p>
+            If the harmful words are degraded — blurred, occluded, compressed — does an input-side OCR filter still catch them? Or does a signal inside the model’s activations hold up better?
+          </p>
+        </article>
+        <article class="about-card">
+          <h3>Activation probe</h3>
+          <p>
+            A small classifier on the VLM’s <strong>hidden states</strong>. It does not OCR the image. It detects a <strong>harmfulness signal</strong> the model already encodes when it understands the request. That is the main positive result below.
+          </p>
+        </article>
+        <article class="about-card">
+          <h3>Circuit breaker</h3>
+          <p>
+            A LoRA meant to <em>reroute</em> harmful activations so the model stops answering (refusal / noise) while benign prompts still work. Ported to Qwen2-VL here; internals moved, but a clear behavioral win was not shown.
+          </p>
+        </article>
+      </div>
+      <p class="about-footnote">
+        Model: Qwen2-VL-2B · attack: typographic images · this page plays back precomputed rates (no model in the browser).
+        For a live upload → probe + OCR checker, run <code>python tool_probe_ocr.py</code> on a GPU (see repo README).
+      </p>
+    </section>
+
     <section id="explore" class="section explore">
       <div class="section-head">
         <h2>Perturbation explorer</h2>
+        <p>Pick a scenario and degrade the image. Compare the activation probe (harmfulness in representations) to OCR (words from pixels).</p>
       </div>
 
       <div class="explore-layout">
@@ -142,12 +176,12 @@
       </div>
     </section>
 
-    <section id="method" class="section method">
+    <section id="takeaways" class="section method">
       <div class="section-head">
-        <h2>What this project is</h2>
-        <p>An activation probe reads a harmfulness signal from Qwen2-VL hidden states. The win is that signal surviving image degradation; the miss is circuit-breaker behavior.</p>
+        <h2>Takeaways</h2>
+        <p>Short summary of what held and what did not.</p>
       </div>
-      <ol class="method-steps" id="takeaways"></ol>
+      <ol class="method-steps" id="takeaways-list"></ol>
       <div class="cites" id="cites"></div>
     </section>
   </main>

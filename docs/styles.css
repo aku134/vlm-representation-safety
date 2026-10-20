@@ -143,7 +143,7 @@ a:hover { color: var(--accent); }
 
 .lede {
   margin: 0 0 1.75rem;
-  max-width: 38ch;
+  max-width: 42ch;
   color: rgba(244, 246, 245, 0.68);
   font-size: 1rem;
   animation: rise 0.9s ease 0.16s both;
@@ -237,6 +237,49 @@ a:hover { color: var(--accent); }
   color: var(--ink-soft);
   font-family: var(--font-serif);
   font-size: 1.05rem;
+}
+
+/* About — project orientation before the explorer */
+.about {
+  border-top: 1px solid var(--line);
+}
+
+.about .section-head {
+  max-width: 46rem;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.about-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.about-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.about-footnote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 860px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Explore */
