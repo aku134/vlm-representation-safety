@@ -22,8 +22,6 @@
     ocrBar: document.getElementById("ocr-bar"),
     blurb: document.getElementById("blurb"),
     statRow: document.getElementById("stat-row"),
-    takeaways: document.getElementById("takeaways-list"),
-    cites: document.getElementById("cites"),
   };
 
   function scenario() {
@@ -122,18 +120,6 @@
       .join("");
   }
 
-  function renderMethod() {
-    els.takeaways.innerHTML = DATA.takeaways
-      .map((t) => `<li><div>${t}</div></li>`)
-      .join("");
-    els.cites.innerHTML = DATA.citations
-      .map(
-        (c) =>
-          `<div class="cite"><a href="${c.url}" target="_blank" rel="noopener">${c.title}</a><p>${c.venue}</p></div>`
-      )
-      .join("");
-  }
-
   els.scenario.addEventListener("change", () => {
     scenarioId = els.scenario.value;
     updateStage();
@@ -159,5 +145,4 @@
   renderControls();
   updateStage();
   renderStats();
-  renderMethod();
 })();

@@ -4,9 +4,12 @@
   --muted: #6b7582;
   --paper: #f3f1eb;
   --paper-2: #e8e4da;
+  --surface: #ffffff;
+  --surface-soft: rgba(255, 255, 255, 0.55);
   --line: rgba(18, 22, 28, 0.12);
   --accent: #0b6e6e;
   --accent-deep: #084f4f;
+  --accent-wash: rgba(11, 110, 110, 0.08);
   --probe: #0b6e6e;
   --ocr: #b45309;
   --danger: #9b2c2c;
@@ -16,6 +19,26 @@
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --max: 1120px;
   --radius: 2px;
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  --ink: #e8ecea;
+  --ink-soft: #b4bec6;
+  --muted: #88939e;
+  --paper: #0e1318;
+  --paper-2: #161d24;
+  --surface: #1a222b;
+  --surface-soft: rgba(26, 34, 43, 0.85);
+  --line: rgba(232, 236, 234, 0.12);
+  --accent: #3db5b0;
+  --accent-deep: #7dd3cf;
+  --accent-wash: rgba(61, 181, 176, 0.14);
+  --probe: #3db5b0;
+  --ocr: #e0a05a;
+  --danger: #e07070;
+  --ok: #6fbf87;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -29,6 +52,7 @@ body {
   background: var(--paper);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 img { max-width: 100%; display: block; }
@@ -102,6 +126,7 @@ a:hover { color: var(--accent); }
 
 .nav-links {
   display: flex;
+  align-items: center;
   gap: 1.25rem;
 }
 
@@ -111,6 +136,36 @@ a:hover { color: var(--accent); }
 }
 
 .nav-links a:hover { color: #fff; }
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 1px solid rgba(244, 246, 245, 0.35);
+  background: transparent;
+  color: rgba(244, 246, 245, 0.9);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.theme-toggle:hover {
+  border-color: #fff;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon {
+  display: none;
+}
+
+/* Light page → show moon (click for dark). Dark page → show sun. */
+html:not([data-theme="dark"]) .theme-toggle .icon-moon { display: block; }
+html[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 
 .hero-grid {
   flex: 1;
@@ -322,7 +377,7 @@ a:hover { color: var(--accent); }
   color: var(--ink);
   padding: 0.65rem 0.7rem;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--surface);
   border-radius: var(--radius);
 }
 
@@ -330,7 +385,7 @@ a:hover { color: var(--accent); }
   border: 1px solid var(--line);
   padding: 0.85rem;
   margin: 0 0 1rem;
-  background: rgba(255,255,255,0.55);
+  background: var(--surface-soft);
 }
 
 .perturbs legend {
@@ -361,13 +416,13 @@ a:hover { color: var(--accent); }
 }
 
 .perturb-btns button:hover {
-  background: rgba(11, 110, 110, 0.06);
+  background: var(--accent-wash);
   color: var(--ink);
 }
 
 .perturb-btns button.active {
-  background: rgba(11, 110, 110, 0.1);
-  border-color: rgba(11, 110, 110, 0.35);
+  background: var(--accent-wash);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent-deep);
   font-weight: 500;
 }
@@ -386,8 +441,7 @@ a:hover { color: var(--accent); }
 }
 
 .stage-image.wrap {
-  background:
-    linear-gradient(180deg, #fff 0%, #f7f5ef 100%);
+  background: var(--surface);
   border: 1px solid var(--line);
   padding: 0.75rem;
 }
@@ -396,7 +450,7 @@ a:hover { color: var(--accent); }
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  background: #ddd;
+  background: var(--paper-2);
   transition: opacity 0.25s ease;
 }
 
@@ -431,7 +485,7 @@ a:hover { color: var(--accent); }
 
 .bar {
   height: 10px;
-  background: rgba(18, 22, 28, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   overflow: hidden;
 }
 
@@ -462,14 +516,26 @@ a:hover { color: var(--accent); }
 /* Results */
 .results {
   background:
-    linear-gradient(180deg, transparent, rgba(11, 110, 110, 0.04) 30%, transparent);
+    linear-gradient(180deg, transparent, var(--accent-wash) 30%, transparent);
+}
+
+html[data-theme="dark"] .section {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] body {
+  background: var(--paper);
 }
 
 .chart-figure {
   margin: 0 0 1.75rem;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--surface);
   padding: 1rem 1rem 0.5rem;
+}
+
+html[data-theme="dark"] .chart-figure img {
+  filter: brightness(0.92) contrast(1.05);
 }
 
 .chart-figure figcaption {
@@ -503,6 +569,32 @@ a:hover { color: var(--accent); }
 .stat-row span {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* Single key takeaway */
+.takeaway {
+  border-top: 1px solid var(--line);
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+  max-width: 40rem;
+}
+
+.takeaway-kicker {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.takeaway-line {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 /* Circuit */

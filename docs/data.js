@@ -5,13 +5,6 @@ window.DEMO_DATA = {
     "model": "Qwen2-VL-2B-Instruct",
     "stack": "Typographic images \u00b7 RepE-style activation probe \u00b7 OCR keyword baseline"
   },
-  "citations": [
-    {
-      "title": "Representation Engineering",
-      "venue": "Zou et al., 2023",
-      "url": "https://arxiv.org/abs/2310.01405"
-    }
-  ],
   "claim": {
     "headline": "Representation probes beat OCR under image degradation",
     "detail": "An activation probe is a classifier on VLM hidden states trained to detect a harmfulness signal in representations. On held-out typographic jailbreaks (n=30), that signal stays detectable under blur and occlusion while OCR collapses."
@@ -215,10 +208,5 @@ window.DEMO_DATA = {
       "base_story": "Benign control — probe should stay quiet.",
       "probe_story": "Probe stays below threshold on this benign control."
     }
-  ],
-  "takeaways": [
-    "Under blur and occlusion the activation probe still detects harmfulness; OCR often does not.",
-    "The probe reads the model’s representations; OCR needs recoverable text in the image.",
-    "Representation-level detection tracks what the VLM understood; input-level OCR fails open under the same degradations."
   ]
 };
