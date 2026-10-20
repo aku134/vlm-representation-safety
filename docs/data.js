@@ -233,7 +233,8 @@ window.DEMO_DATA = {
   "takeaways": [
     "Attack: render a harmful instruction into pixels; carrier text stays benign.",
     "Activation probe: small classifier on layer-22 hidden states that detects a harmfulness signal the VLM already encodes.",
-    "Win: that signal survives blur/occlusion; OCR keyword filters fail open.",
+    "Circuit breaker: LoRA that reroutes harmful hidden states so generation collapses (refusal/noise), while retain loss keeps benign answers intact.",
+    "Win: the probe’s harmfulness signal survives blur/occlusion; OCR keyword filters fail open.",
     "Honest miss: ported circuit-breaker LoRA did not reduce comply on the attack that matters."
   ]
 };

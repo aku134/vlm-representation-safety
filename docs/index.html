@@ -112,7 +112,12 @@
     <section id="circuit" class="section circuit">
       <div class="section-head">
         <h2>Circuit breakers — honest result</h2>
-        <p>I ported Gray Swan’s LoRRA trainer to Qwen2-VL. Internals moved; generation-level short-circuit did not.</p>
+        <p>
+          A <strong>circuit breaker</strong> (Gray Swan / Zou et al.) is a LoRA trained so that when the model’s hidden states look harmful, generation is <em>rerouted</em> away from continuing a harmful answer — ideally collapsing into refusal or noise — while benign prompts still work (retain loss). It does not block the harmful input from entering; it short-circuits the output path in representation space (LoRRA dual loss).
+        </p>
+        <p>
+          That trainer was ported to Qwen2-VL for typographic jailbreaks. Internals moved; generation-level short-circuit did not land as a clear win.
+        </p>
       </div>
       <div class="cb-grid">
         <div class="cb-block">

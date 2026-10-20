@@ -32,6 +32,8 @@ This project asks whether safety that lives in activations survives that attack 
 
 **Activation probe.** A small classifier (logistic regression / MLP) trained on the VLM’s *hidden states*, not on OCR text. Harmful and benign image+prompt pairs produce different activation patterns; the probe learns that difference as a **harmfulness signal**. At test time it scores layer-22 activations (max over tokens); above a threshold tuned for &lt;1% benign false positives, it fires.
 
+**Circuit breaker.** A LoRA adapter trained with Gray Swan’s LoRRA recipe so that when mid-layer activations look harmful, generation is **rerouted** away from continuing a harmful completion (refusal or incoherent collapse), while a retain loss keeps answers close to the base model on benign traffic. The harmful image+prompt still enters the model; the break is in representation space, not an input filter.
+
 1. Build typographic jailbreak images and train/eval manifests (`src/build_dataset.py`).
 2. Extract activations and train the harmfulness probe (`src/extract_activations.py`, `src/train_probe.py`) — RepE-style, max-over-tokens, layer chosen by held-out AUC.
 3. Evaluate the probe against an OCR keyword baseline under noise, JPEG, rotation, occlusion, and blur (`src/perturb_eval.py`).
@@ -60,7 +62,7 @@ On clean and lightly degraded images both methods look strong. Under occlusion a
 
 ### Circuit breaker (secondary)
 
-A LoRA circuit breaker was trained and evaluated on the same typographic setup. On clean harmful images (n=20), the base model complied **30%** of the time; the circuit-broken model complied **50%** — no behavioral safety gain in this run. Benign clean compliance stayed at 100% for both. See [`results/outputs/eval_summary.json`](results/outputs/eval_summary.json).
+Goal of a circuit breaker: if the model is about to continue a harmful answer, reroute those activations so generation collapses, without breaking benign answers. A LoRA circuit breaker was trained and evaluated on the same typographic setup. On clean harmful images (n=20), the base model complied **30%** of the time; the circuit-broken model complied **50%** — no behavioral safety gain in this run. Benign clean compliance stayed at 100% for both. See [`results/outputs/eval_summary.json`](results/outputs/eval_summary.json).
 
 The circuit-breaker port is included for completeness; it did not produce a solid generation-level win. The supported claim from this repo is the probe-vs-OCR result.
 
