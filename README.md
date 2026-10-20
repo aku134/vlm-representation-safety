@@ -99,7 +99,7 @@ results/outputs/        # eval summaries, perturb rates, chart, train log
 
 **Probe vs OCR tool (GPU):**
 
-```bash
+```bash 
 pip install -U transformers accelerate qwen-vl-utils pillow scikit-learn joblib gradio
 # needs results/outputs/probe.joblib (or outputs/probe.joblib)
 python tool_probe_ocr.py
