@@ -30,8 +30,10 @@ This project asks whether safety that lives in activations survives that attack 
 
 ## Method
 
+**Activation probe.** A small classifier (logistic regression / MLP) trained on the VLM’s *hidden states*, not on OCR text. Harmful and benign image+prompt pairs produce different activation patterns; the probe learns that difference as a **harmfulness signal**. At test time it scores layer-22 activations (max over tokens); above a threshold tuned for &lt;1% benign false positives, it fires.
+
 1. Build typographic jailbreak images and train/eval manifests (`src/build_dataset.py`).
-2. Train a harmfulness probe on base-model activations (`src/extract_activations.py`, `src/train_probe.py`) — RepE-style classifier, max-over-tokens scoring, layer selected by held-out AUC.
+2. Extract activations and train the harmfulness probe (`src/extract_activations.py`, `src/train_probe.py`) — RepE-style, max-over-tokens, layer chosen by held-out AUC.
 3. Evaluate the probe against an OCR keyword baseline under noise, JPEG, rotation, occlusion, and blur (`src/perturb_eval.py`).
 4. Port a multimodal circuit-breaker LoRA (`src/train_cb_vlm.py`) and compare base vs adapter generations (`src/eval_cb.py`).
 

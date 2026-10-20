@@ -30,7 +30,7 @@
         <p class="brand">Pixel Jailbreak</p>
         <h1>When the attack lives in the image, OCR fails open.</h1>
         <p class="lede">
-          A representation probe on Qwen2-VL still flags typographic jailbreaks under blur and occlusion — where reading the pixels with OCR collapses.
+          An <strong>activation probe</strong> is a small classifier on the VLM’s hidden states that reads a <strong>harmfulness signal</strong> already present in the model’s representations. Under blur and occlusion that signal still fires — while OCR, which only reads pixels, collapses.
         </p>
         <div class="cta-row">
           <a class="btn primary" href="#explore">Try the perturbation explorer</a>
@@ -81,7 +81,7 @@
                 <strong id="probe-val">—</strong>
               </div>
               <div class="bar"><i id="probe-bar"></i></div>
-              <p class="meter-hint">RepE-style classifier on layer-22 hidden states</p>
+              <p class="meter-hint">Detects harmfulness in layer-22 activations (not by reading the image text)</p>
             </div>
             <div class="meter">
               <div class="meter-top">
@@ -89,7 +89,7 @@
                 <strong id="ocr-val">—</strong>
               </div>
               <div class="bar ocr"><i id="ocr-bar"></i></div>
-              <p class="meter-hint">Input-side text recovery from the image</p>
+              <p class="meter-hint">Tries to recover the harmful words from pixels</p>
             </div>
             <p class="blurb" id="blurb"></p>
           </div>
@@ -100,7 +100,7 @@
     <section id="results" class="section results">
       <div class="section-head">
         <h2>Probe holds; OCR drops</h2>
-        <p>Detection rate on held-out typographic harmful images as the image is degraded.</p>
+        <p>Detection rate on held-out typographic harmful images. The probe scores a harmfulness direction in activations; OCR scores recovered keywords.</p>
       </div>
       <figure class="chart-figure">
         <img src="assets/perturb_chart.png" alt="Bar chart comparing probe detection rate vs OCR rate across perturbations" />
@@ -140,7 +140,7 @@
     <section id="method" class="section method">
       <div class="section-head">
         <h2>What this project is</h2>
-        <p>A multimodal stress test with a clear win and a clear miss.</p>
+        <p>An activation probe reads a harmfulness signal from Qwen2-VL hidden states. The win is that signal surviving image degradation; the miss is circuit-breaker behavior.</p>
       </div>
       <ol class="method-steps" id="takeaways"></ol>
       <div class="cites" id="cites"></div>

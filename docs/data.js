@@ -19,7 +19,7 @@ window.DEMO_DATA = {
   ],
   "claim": {
     "headline": "Representation probes beat OCR under image degradation",
-    "detail": "On held-out typographic jailbreaks (n=30), an activation probe keeps detecting harm when blur and occlusion destroy OCR. Circuit-breaker LoRA training moved internals but did not close the occlusion jailbreak."
+    "detail": "An activation probe is a classifier on VLM hidden states trained to detect a harmfulness signal in representations. On held-out typographic jailbreaks (n=30), that signal stays detectable under blur and occlusion while OCR collapses. Circuit-breaker LoRA moved internals but did not close the occlusion jailbreak."
   },
   "perturb": {
     "clean": {
@@ -232,7 +232,8 @@ window.DEMO_DATA = {
   ],
   "takeaways": [
     "Attack: render a harmful instruction into pixels; carrier text stays benign.",
-    "Win: probe vs OCR under blur/occlusion \u2014 input filters fail open.",
+    "Activation probe: small classifier on layer-22 hidden states that detects a harmfulness signal the VLM already encodes.",
+    "Win: that signal survives blur/occlusion; OCR keyword filters fail open.",
     "Honest miss: ported circuit-breaker LoRA did not reduce comply on the attack that matters."
   ]
 };
