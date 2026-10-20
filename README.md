@@ -4,6 +4,8 @@ Representation-level harmfulness detection for vision-language models under typo
 
 **Main finding:** a probe on VLM activations keeps detecting harmful image instructions under occlusion and heavy blur; an OCR keyword filter does not.
 
+**Live demo:** [aku134.github.io/vlm-representation-safety](https://aku134.github.io/vlm-representation-safety/) — static perturbation explorer (no GPU; precomputed rates).
+
 ---
 
 ## Motivation

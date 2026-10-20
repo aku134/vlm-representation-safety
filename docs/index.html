@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Jailbreak — Representation probes vs OCR</title>
+  <meta name="description" content="Portfolio demo: typographic jailbreaks on a VLM. An activation probe detects harm under image degradation where OCR fails. Circuit-breaker LoRA ported; behavioral win not shown." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip" href="#explore">Skip to explorer</a>
+
+  <header class="hero">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <nav class="nav">
+      <span class="brand-mark">Pixel Jailbreak</span>
+      <div class="nav-links">
+        <a href="#explore">Explore</a>
+        <a href="#results">Results</a>
+        <a href="#circuit">Circuit breakers</a>
+        <a href="#method">Method</a>
+      </div>
+    </nav>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="brand">Pixel Jailbreak</p>
+        <h1>When the attack lives in the image, OCR fails open.</h1>
+        <p class="lede">
+          A representation probe on Qwen2-VL still flags typographic jailbreaks under blur and occlusion — where reading the pixels with OCR collapses.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="#explore">Try the perturbation explorer</a>
+          <a class="btn ghost" href="#results">See the numbers</a>
+        </div>
+      </div>
+      <figure class="hero-visual">
+        <img id="hero-img" src="assets/fakenews_occlude.png" alt="Typographic jailbreak image with partial occlusion" />
+        <figcaption>
+          <span class="cap-kicker">Attack surface</span>
+          Harmful instruction in pixels · carrier text stays benign
+        </figcaption>
+      </figure>
+    </div>
+  </header>
+
+  <main>
+    <section id="explore" class="section explore">
+      <div class="section-head">
+        <h2>Perturbation explorer</h2>
+      </div>
+
+      <div class="explore-layout">
+        <aside class="controls">
+          <label class="field">
+            <span>Scenario</span>
+            <select id="scenario"></select>
+          </label>
+
+          <fieldset class="perturbs">
+            <legend>Image degradation</legend>
+            <div id="perturb-btns" class="perturb-btns"></div>
+          </fieldset>
+
+          <p class="scenario-note" id="scenario-note"></p>
+        </aside>
+
+        <div class="stage">
+          <div class="stage-image wrap">
+            <img id="stage-img" alt="Selected typographic example" />
+            <p class="carrier" id="carrier"></p>
+          </div>
+
+          <div class="meters" aria-live="polite">
+            <div class="meter">
+              <div class="meter-top">
+                <span>Activation probe</span>
+                <strong id="probe-val">—</strong>
+              </div>
+              <div class="bar"><i id="probe-bar"></i></div>
+              <p class="meter-hint">RepE-style classifier on layer-22 hidden states</p>
+            </div>
+            <div class="meter">
+              <div class="meter-top">
+                <span>OCR keyword filter</span>
+                <strong id="ocr-val">—</strong>
+              </div>
+              <div class="bar ocr"><i id="ocr-bar"></i></div>
+              <p class="meter-hint">Input-side text recovery from the image</p>
+            </div>
+            <p class="blurb" id="blurb"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="section results">
+      <div class="section-head">
+        <h2>Probe holds; OCR drops</h2>
+        <p>Detection rate on held-out typographic harmful images as the image is degraded.</p>
+      </div>
+      <figure class="chart-figure">
+        <img src="assets/perturb_chart.png" alt="Bar chart comparing probe detection rate vs OCR rate across perturbations" />
+        <figcaption>Source: perturb_eval · n=30 harmful · probe layer 22 · threshold tuned to &lt;1% benign FPR</figcaption>
+      </figure>
+      <ul class="stat-row" id="stat-row"></ul>
+    </section>
+
+    <section id="circuit" class="section circuit">
+      <div class="section-head">
+        <h2>Circuit breakers — honest result</h2>
+        <p>I ported Gray Swan’s LoRRA trainer to Qwen2-VL. Internals moved; generation-level short-circuit did not.</p>
+      </div>
+      <div class="cb-grid">
+        <div class="cb-block">
+          <h3>What worked in training</h3>
+          <ul>
+            <li>Fixed <code>disable_adapter()</code> frozen pass (cosine was stuck at 1.0)</li>
+            <li>RMU loss + LoRA-B noise so gradients exist at init</li>
+            <li>Complying filter: CB-train only where base answered (75/240)</li>
+            <li>Logged cosine fell ~1.0 → ~0.1</li>
+          </ul>
+        </div>
+        <div class="cb-block">
+          <h3>What the eval showed</h3>
+          <table class="cb-table">
+            <thead>
+              <tr><th>Slice</th><th>Base</th><th>CB</th></tr>
+            </thead>
+            <tbody id="cb-tbody"></tbody>
+          </table>
+          <p class="fineprint">Occlusion is the real jailbreak (~75% comply). CB matched base. Benign utility took a hit (25% incoherent).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="section method">
+      <div class="section-head">
+        <h2>What this project is</h2>
+        <p>A multimodal stress test with a clear win and a clear miss.</p>
+      </div>
+      <ol class="method-steps" id="takeaways"></ol>
+      <div class="cites" id="cites"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      Precomputed from Colab T4 runs on Qwen2-VL-2B
+    </p>
+    <p class="fineprint">Examples use research-framed prompts suitable for a public page. Full eval used Gray Swan <code>circuit_breakers_train</code> text rendered as typographic images.</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
