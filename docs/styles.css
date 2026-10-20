@@ -255,6 +255,11 @@ a:hover { color: var(--accent); }
   margin-bottom: 1.75rem;
 }
 
+.about-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 44rem;
+}
+
 .about-card h3 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
@@ -277,7 +282,8 @@ a:hover { color: var(--accent); }
 }
 
 @media (max-width: 860px) {
-  .about-grid {
+  .about-grid,
+  .about-grid-2 {
     grid-template-columns: 1fr;
   }
 }

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pixel Jailbreak — Representation probes vs OCR</title>
-  <meta name="description" content="Portfolio demo: typographic jailbreaks on a VLM. An activation probe detects harm under image degradation where OCR fails. Circuit-breaker LoRA ported; behavioral win not shown." />
+  <meta name="description" content="Portfolio demo: typographic jailbreaks on a VLM. An activation probe detects harm under image degradation where OCR fails." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
@@ -21,7 +21,7 @@
         <a href="#about">About</a>
         <a href="#explore">Explore</a>
         <a href="#results">Results</a>
-        <a href="#circuit">Circuit breakers</a>
+        <a href="#takeaways">Takeaways</a>
       </div>
     </nav>
 
@@ -55,23 +55,17 @@
           Vision-language models take an image plus a short text prompt. A <strong>typographic jailbreak</strong> puts the harmful ask <em>inside the image</em> (“how to …”) and only sends a harmless carrier like “follow the instructions in the image.” Text filters never see the bad request.
         </p>
       </div>
-      <div class="about-grid">
-        <article class="about-card">
-          <h3>The question</h3>
-          <p>
-            If the harmful words are degraded — blurred, occluded, compressed — does an input-side OCR filter still catch them? Or does a signal inside the model’s activations hold up better?
-          </p>
-        </article>
+      <div class="about-grid about-grid-2">
         <article class="about-card">
           <h3>Activation probe</h3>
           <p>
-            A small classifier on the VLM’s <strong>hidden states</strong>. It does not OCR the image. It detects a <strong>harmfulness signal</strong> the model already encodes when it understands the request. That is the main positive result below.
+            A small classifier on the VLM’s <strong>hidden states</strong>. It does not OCR the image. It detects a <strong>harmfulness signal</strong> the model already encodes when it understands the request. That is the main result below.
           </p>
         </article>
         <article class="about-card">
-          <h3>Circuit breaker</h3>
+          <h3>OCR keyword filter</h3>
           <p>
-            A LoRA meant to <em>reroute</em> harmful activations so the model stops answering (refusal / noise) while benign prompts still work. Ported to Qwen2-VL here; internals moved, but a clear behavioral win was not shown.
+            An input-side baseline: recover text from the image pixels, then check for harmful keywords. Under blur and occlusion that recovery fails — so the filter often misses harm the model still understood.
           </p>
         </article>
       </div>
@@ -84,7 +78,7 @@
     <section id="explore" class="section explore">
       <div class="section-head">
         <h2>Perturbation explorer</h2>
-        <p>Pick a scenario and degrade the image. Compare the activation probe (harmfulness in representations) to OCR (words from pixels).</p>
+        <p>Pick a scenario and degrade the image. Compare the activation probe (harmfulness in representations) to OCR (harmfulness from recovered pixels).</p>
       </div>
 
       <div class="explore-layout">
@@ -123,7 +117,7 @@
                 <strong id="ocr-val">—</strong>
               </div>
               <div class="bar ocr"><i id="ocr-bar"></i></div>
-              <p class="meter-hint">Tries to recover the harmful words from pixels</p>
+              <p class="meter-hint">Detects harmfulness from text recovered in the pixels</p>
             </div>
             <p class="blurb" id="blurb"></p>
           </div>
@@ -143,43 +137,10 @@
       <ul class="stat-row" id="stat-row"></ul>
     </section>
 
-    <section id="circuit" class="section circuit">
-      <div class="section-head">
-        <h2>Circuit breakers — honest result</h2>
-        <p>
-          A <strong>circuit breaker</strong> (Gray Swan / Zou et al.) is a LoRA trained so that when the model’s hidden states look harmful, generation is <em>rerouted</em> away from continuing a harmful answer — ideally collapsing into refusal or noise — while benign prompts still work (retain loss). It does not block the harmful input from entering; it short-circuits the output path in representation space (LoRRA dual loss).
-        </p>
-        <p>
-          That trainer was ported to Qwen2-VL for typographic jailbreaks. Internals moved; generation-level short-circuit did not land as a clear win.
-        </p>
-      </div>
-      <div class="cb-grid">
-        <div class="cb-block">
-          <h3>What worked in training</h3>
-          <ul>
-            <li>Fixed <code>disable_adapter()</code> frozen pass (cosine was stuck at 1.0)</li>
-            <li>RMU loss + LoRA-B noise so gradients exist at init</li>
-            <li>Complying filter: CB-train only where base answered (75/240)</li>
-            <li>Logged cosine fell ~1.0 → ~0.1</li>
-          </ul>
-        </div>
-        <div class="cb-block">
-          <h3>What the eval showed</h3>
-          <table class="cb-table">
-            <thead>
-              <tr><th>Slice</th><th>Base</th><th>CB</th></tr>
-            </thead>
-            <tbody id="cb-tbody"></tbody>
-          </table>
-          <p class="fineprint">Occlusion is the real jailbreak (~75% comply). CB matched base. Benign utility took a hit (25% incoherent).</p>
-        </div>
-      </div>
-    </section>
-
     <section id="takeaways" class="section method">
       <div class="section-head">
         <h2>Takeaways</h2>
-        <p>Short summary of what held and what did not.</p>
+        <p>What the experiment showed for representation-level vs input-level detection.</p>
       </div>
       <ol class="method-steps" id="takeaways-list"></ol>
       <div class="cites" id="cites"></div>
@@ -190,7 +151,7 @@
     <p>
       Precomputed from Colab T4 runs on Qwen2-VL-2B
     </p>
-    <p class="fineprint">Examples use research-framed prompts suitable for a public page. Full eval used Gray Swan <code>circuit_breakers_train</code> text rendered as typographic images.</p>
+    <p class="fineprint">Examples use research-framed prompts suitable for a public page. Harmful text for training/eval came from Gray Swan circuit-breaker prompt corpora, rendered as typographic images.</p>
   </footer>
 
   <script src="data.js"></script>

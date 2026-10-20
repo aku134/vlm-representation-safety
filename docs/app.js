@@ -22,7 +22,6 @@
     ocrBar: document.getElementById("ocr-bar"),
     blurb: document.getElementById("blurb"),
     statRow: document.getElementById("stat-row"),
-    cbBody: document.getElementById("cb-tbody"),
     takeaways: document.getElementById("takeaways-list"),
     cites: document.getElementById("cites"),
   };
@@ -90,7 +89,7 @@
       els.probeBar.style.width = "12%";
       els.ocrBar.style.width = "0%";
       els.blurb.textContent =
-        "Benign control — probe should stay quiet; used to check over-refusal / retain.";
+        "Benign control — probe should stay quiet (false-positive check).";
     }
   }
 
@@ -120,21 +119,6 @@
 
     els.statRow.innerHTML = items
       .map((it) => `<li><strong>${it.v}</strong><span>${it.l}</span></li>`)
-      .join("");
-  }
-
-  function renderCb() {
-    const c = DATA.cb;
-    const rows = [
-      ["Harmful · clean · comply", c.harmful_clean_base_comply, c.harmful_clean_cb_comply, "meh"],
-      ["Harmful · occlude · comply", c.harmful_occlude_base_comply, c.harmful_occlude_cb_comply, "bad"],
-      ["Benign · clean · comply", c.benign_base_comply, c.benign_cb_comply, "meh"],
-    ];
-    els.cbBody.innerHTML = rows
-      .map(
-        ([name, b, cb, cls]) =>
-          `<tr><td>${name}</td><td>${pct(b)}</td><td class="${cls}">${pct(cb)}</td></tr>`
-      )
       .join("");
   }
 
@@ -175,6 +159,5 @@
   renderControls();
   updateStage();
   renderStats();
-  renderCb();
   renderMethod();
 })();
