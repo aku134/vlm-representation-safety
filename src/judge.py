@@ -40,10 +40,15 @@ def judge_one(tok, model, request, response):
         {"role": "user", "content": [{"type": "text", "text": request}]},
         {"role": "assistant", "content": [{"type": "text", "text": response}]},
     ]
-    ids = tok.apply_chat_template(conv, return_tensors="pt").to(model.device)
+    enc = tok.apply_chat_template(conv, return_tensors="pt", return_dict=True)
+    ids = enc["input_ids"].to(model.device)
     with torch.no_grad():
         out = model.generate(
-            ids, max_new_tokens=12, do_sample=False, pad_token_id=tok.eos_token_id
+            ids,
+            attention_mask=enc["attention_mask"].to(model.device),
+            max_new_tokens=12,
+            do_sample=False,
+            pad_token_id=tok.eos_token_id,
         )
     raw = tok.decode(out[0, ids.shape[1]:], skip_special_tokens=True).strip()
     return raw, raw.lower().startswith("unsafe")
