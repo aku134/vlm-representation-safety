@@ -29,11 +29,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 from PIL import Image
 from peft import LoraConfig, get_peft_model
@@ -237,13 +241,14 @@ def _model_inputs(enc):
     return {k: v for k, v in enc.items() if k not in _SKIP_KEYS and v is not None}
 
 
-def hidden_states(model, enc, layers=None, adapter_off=False):
-    """Language-model hidden states.
+def hidden_states(model, enc, layers, adapter_off=False, logits_mask=None):
+    """Language-model hidden states at `layers`, as a list of (B, L, H).
 
-    adapter_off=True must use PeftModel.disable_adapter(), NOT get_base_model().
-    get_base_model() still returns modules whose Linear layers are LoraLinear and
-    keep applying the LoRA delta — so "frozen" == "lora", cosine sticks at 1.0,
-    and any retain L2 is mostly train-mode LoRA dropout noise.
+    One forward with output_hidden_states=True; we index into it (no extra
+    passes). adapter_off=True must use PeftModel.disable_adapter(), NOT
+    get_base_model(): get_base_model() still returns modules whose Linear layers
+    are LoraLinear and keep applying the LoRA delta — so "frozen" == "lora",
+    cosine sticks at 1.0, and any retain L2 is mostly LoRA dropout noise.
     """
     kwargs = dict(
         **_model_inputs(enc),
@@ -251,23 +256,83 @@ def hidden_states(model, enc, layers=None, adapter_off=False):
         use_cache=False,
         return_dict=True,
     )
-    if adapter_off and hasattr(model, "disable_adapter"):
+    if adapter_off:
+        assert hasattr(model, "disable_adapter"), "frozen pass needs a PeftModel"
         with model.disable_adapter():
             out = model(**kwargs)
     else:
         out = model(**kwargs)
-    hs = out.hidden_states
-    if layers is None:
-        return torch.stack(hs)
-    return torch.stack([hs[l] for l in layers])
+    hs = [out.hidden_states[l] for l in layers]
+    if logits_mask is None:
+        del out
+        return hs
+    # Keep only logits that predict response tokens: logits[t] predicts token t+1.
+    sel = out.logits[:, :-1][logits_mask[:, 1:].bool()]  # (N, V)
+    del out
+    return hs, sel
 
 
-def retain_loss_fn(lora_h, frozen_h, attention_mask):
-    """Masked L2 between LoRA and frozen hidden states, all layers."""
-    mask = attention_mask.unsqueeze(0).unsqueeze(-1)
-    diff = (lora_h - frozen_h) * mask
-    norms = torch.norm(diff, dim=-1, p=2, dtype=torch.float)
-    return norms.sum() / mask.sum().clamp_min(1.0)
+def retain_loss_fn(lora_hs, frozen_hs, attention_mask):
+    """Masked L2 between LoRA and frozen hidden states, averaged over layers.
+
+    lora_hs / frozen_hs: lists of (B, L, H), one entry per retain layer, so we
+    never materialise a stacked (layers, B, L, H) copy. Per layer: mean over
+    non-pad tokens of ||h_lora - h_frozen||_2; then mean over layers (Gray Swan
+    convention), so the loss scale does not grow with the number of layers.
+    """
+    mask = attention_mask.unsqueeze(-1).to(lora_hs[0].dtype)
+    denom = attention_mask.sum().clamp_min(1).float()
+    total = 0.0
+    for lh, fh in zip(lora_hs, frozen_hs):
+        norms = torch.norm((lh - fh) * mask, dim=-1, p=2, dtype=torch.float)
+        total = total + norms.sum() / denom
+    return total / len(lora_hs)
+
+
+def kl_frozen_lora(frozen_logits, lora_logits, chunk: int = 64):
+    """Mean over response tokens of KL(frozen || LoRA) on next-token dists.
+
+    Inputs are (N, V) logits already restricted to response positions. Chunked
+    over N so float32 log-softmax over the ~150k vocab stays small.
+    """
+    n = lora_logits.shape[0]
+    if n == 0:
+        return lora_logits.sum() * 0.0
+    total = 0.0
+    for i in range(0, n, chunk):
+        lp_l = torch.log_softmax(lora_logits[i : i + chunk].float(), dim=-1)
+        lp_f = torch.log_softmax(frozen_logits[i : i + chunk].float(), dim=-1)
+        total = total + torch.nn.functional.kl_div(
+            lp_l, lp_f, log_target=True, reduction="sum"
+        )
+    return total / n
+
+
+def parse_retain_layers(spec: str, target_layers: list[int], num_layers: int) -> list[int]:
+    """Hidden-state indices for the retain loss.
+
+    hidden_states[0] is the embedding output; hidden_states[i] is the output of
+    decoder layer i-1. LoRA sits on decoder layers 0..max(target), whose outputs
+    are hidden_states[1 .. max(target)+1].
+
+      targets  -> the CB target layers only (old behaviour)
+      all      -> every hidden state a LoRA layer writes: 1..max(target)+1
+      every:K  -> every K-th of those, plus the targets
+      full     -> every hidden state 1..num_layers (Gray Swan original)
+    """
+    top = max(target_layers) + 1
+    if spec == "targets":
+        layers = set(target_layers)
+    elif spec == "all":
+        layers = set(range(1, top + 1))
+    elif spec.startswith("every:"):
+        k = int(spec.split(":", 1)[1])
+        layers = {i for i in range(1, top + 1) if i % k == 0} | set(target_layers)
+    elif spec == "full":
+        layers = set(range(1, num_layers + 1))
+    else:
+        raise ValueError(f"bad --retain-layers {spec!r}")
+    return sorted(layers)
 
 
 def mean_cosine(lora_h, frozen_h, response_mask):
@@ -321,12 +386,49 @@ def schedule_coeffs(step: int, max_steps: int, alpha: float, cb_floor: float):
 
 
 # --------------------------------------------------------------------------
+# reproducibility / run folders
+# --------------------------------------------------------------------------
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+
+
+def prepare_run_dir(args) -> Path:
+    """out/runs/<run_name>/ — refuse to reuse a folder that already has results."""
+    run_dir = Path(args.runs_dir) / args.run_name
+    if run_dir.exists() and any(p.name != "stage.log" for p in run_dir.iterdir()):
+        raise SystemExit(
+            f"run folder {run_dir} already exists and is not empty; "
+            "pick a new --run-name (earlier runs are never overwritten)"
+        )
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def write_json(path: Path, obj) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=1)
+    tmp.replace(path)
+
+
+# --------------------------------------------------------------------------
 # training
 # --------------------------------------------------------------------------
 
 def train(args):
     device = "cuda"
     assert torch.cuda.is_available(), "This trainer targets CUDA (run on Colab)."
+    set_seed(args.seed)
+    run_dir = prepare_run_dir(args)
+    write_json(run_dir / "args.json", dict(vars(args), argv=sys.argv))
+    print(f"run folder: {run_dir}")
+
     bf16 = torch.cuda.is_bf16_supported()
     dtype = torch.bfloat16 if bf16 else torch.float16
     print(f"compute dtype: {dtype}")
@@ -351,6 +453,11 @@ def train(args):
     # Filter BEFORE attaching LoRA — uses the clean base model.
     harmful, retain = load_examples(args.manifest, args.image_root)
     print(f"before filter: {len(harmful)} harmful, {len(retain)} retain")
+    if args.smoke:
+        # Smoke: only scan a slice for the complying filter (cache entries are
+        # still per-id and valid, so later full runs reuse them).
+        harmful = harmful[:24]
+        retain = retain[:24]
     if args.filter_complying:
         cache_path = Path(args.complying_cache) if args.complying_cache else None
         harmful = filter_complying_harmful(
@@ -358,6 +465,7 @@ def train(args):
         )
     print(f"training with: {len(harmful)} harmful (CB), {len(retain)} retain")
     torch.cuda.empty_cache()
+    set_seed(args.seed)  # filter may or may not have run; reseed before LoRA init
 
     lora_cfg = LoraConfig(
         r=args.lora_r,
@@ -392,19 +500,31 @@ def train(args):
     rand_dirs = make_random_dirs(len(target_layers), hidden, device, seed=args.seed)
     print(f"CB loss mode: {args.cb_loss} | hidden={hidden}")
 
-    cb_batches = Batcher(harmful, processor, args.batch_size, args.max_response_chars, device, seed=1)
-    rt_batches = Batcher(retain, processor, args.batch_size, args.max_response_chars, device, seed=2)
+    cb_batches = Batcher(harmful, processor, args.batch_size, args.max_response_chars, device, seed=args.seed + 1)
+    rt_batches = Batcher(retain, processor, args.batch_size, args.max_response_chars, device, seed=args.seed + 2)
 
     params = [p for p in model.parameters() if p.requires_grad]
     optim = torch.optim.AdamW(params, lr=args.lr, weight_decay=0.0)
     scaler = torch.amp.GradScaler("cuda", enabled=not bf16)
 
-    # Retain only at CB target layers (not all 29) — otherwise T4 OOMs holding
-    # two full hidden-state stacks.
-    retain_layers = list(target_layers)
-    print(f"retain layers: {retain_layers} (memory-safe; was all layers)")
+    retain_layers = parse_retain_layers(args.retain_layers, target_layers, num_layers)
+    print(f"retain layers ({args.retain_layers}): {retain_layers}")
 
+    meta = dict(
+        run_name=args.run_name,
+        args=vars(args),
+        target_layers=target_layers,
+        retain_layers=retain_layers,
+        lora_layers=list(range(max(target_layers) + 1)),
+        n_harmful_cb=len(harmful),
+        n_retain=len(retain),
+        dtype=str(dtype),
+        gpu=torch.cuda.get_device_name(0),
+    )
+    norm_r, norm_c = None, None  # step-1 divisors when --normalize-losses
     log = []
+    t0 = time.time()
+    torch.cuda.reset_peak_memory_stats()
     for step in range(1, args.max_steps + 1):
         retain_coeff, cb_coeff = schedule_coeffs(
             step, args.max_steps, args.alpha, args.cb_coeff_floor
@@ -415,70 +535,95 @@ def train(args):
 
         model.eval()
         optim.zero_grad(set_to_none=True)
-        r_loss_val, c_loss_val, cos_now = 0.0, 0.0, None
+        raw_retain, raw_cb, cos_now, raw_kl = None, None, None, None
+        scaled_retain, scaled_cb = None, None
 
         # ---- retain: frozen then LoRA, backward, free ----
+        # total = retain_coeff * (l2 / norm_r + kl_coeff * kl)
         if retain_coeff > 0:
+            want_kl = args.kl_coeff > 0
+            lmask = rt_enc["response_mask"] if want_kl else None
             with torch.no_grad(), torch.autocast("cuda", dtype=dtype):
-                frozen_rt = hidden_states(
-                    model, rt_enc, retain_layers, adapter_off=True
-                )
+                res = hidden_states(model, rt_enc, retain_layers, adapter_off=True, logits_mask=lmask)
+                frozen_rt, frozen_logits = res if want_kl else (res, None)
             with torch.autocast("cuda", dtype=dtype):
-                lora_rt = hidden_states(
-                    model, rt_enc, retain_layers, adapter_off=False
-                )
-                r_loss = retain_coeff * retain_loss_fn(
-                    lora_rt, frozen_rt, rt_enc["attention_mask"]
-                )
-            r_loss_val = float(r_loss.detach() / retain_coeff)
+                res = hidden_states(model, rt_enc, retain_layers, adapter_off=False, logits_mask=lmask)
+                lora_rt, lora_logits = res if want_kl else (res, None)
+                r_raw = retain_loss_fn(lora_rt, frozen_rt, rt_enc["attention_mask"])
+            if args.normalize_losses and norm_r is None:
+                norm_r = max(float(r_raw.detach()), args.norm_floor)
+                print(f"normalize: retain step-1 raw={float(r_raw.detach()):.4g} -> divisor {norm_r:.4g}")
+            r_term = r_raw / (norm_r or 1.0)
+            if want_kl:
+                kl_t = kl_frozen_lora(frozen_logits, lora_logits)
+                raw_kl = float(kl_t.detach())
+                r_term = r_term + args.kl_coeff * kl_t
+            r_loss = retain_coeff * r_term
+            raw_retain = float(r_raw.detach())
+            scaled_retain = float(r_loss.detach())
             scaler.scale(r_loss).backward()
-            del frozen_rt, lora_rt, r_loss
+            del frozen_rt, lora_rt, r_loss, r_raw, r_term, frozen_logits, lora_logits
             torch.cuda.empty_cache()
 
         # ---- circuit breaker: frozen then LoRA, backward, free ----
         if cb_coeff > 0:
             with torch.no_grad(), torch.autocast("cuda", dtype=dtype):
-                frozen_cb = hidden_states(
+                frozen_cb = torch.stack(hidden_states(
                     model, cb_enc, target_layers, adapter_off=True
-                )
+                ))
             with torch.autocast("cuda", dtype=dtype):
-                lora_cb = hidden_states(
+                lora_cb = torch.stack(hidden_states(
                     model, cb_enc, target_layers, adapter_off=False
-                )
+                ))
                 if args.cb_loss == "rmu":
-                    raw_cb = circuit_breaker_rmu_loss(
+                    raw_cb_t = circuit_breaker_rmu_loss(
                         lora_cb, frozen_cb, cb_enc["response_mask"], rand_dirs
                     )
                 else:
-                    raw_cb = circuit_breaker_cosine_loss(
+                    raw_cb_t = circuit_breaker_cosine_loss(
                         lora_cb, frozen_cb, cb_enc["response_mask"]
                     )
-                c_loss = cb_coeff * raw_cb
-            c_loss_val = float(raw_cb.detach())
+                if args.normalize_losses and norm_c is None:
+                    norm_c = max(float(raw_cb_t.detach()), args.norm_floor)
+                    print(f"normalize: CB step-1 raw={float(raw_cb_t.detach()):.4g} -> divisor {norm_c:.4g}")
+                c_loss = cb_coeff * raw_cb_t / (norm_c or 1.0)
+            raw_cb = float(raw_cb_t.detach())
+            scaled_cb = float(c_loss.detach())
             with torch.no_grad():
                 cos_now = float(mean_cosine(lora_cb, frozen_cb, cb_enc["response_mask"]))
             scaler.scale(c_loss).backward()
-            del frozen_cb, lora_cb, c_loss, raw_cb
+            del frozen_cb, lora_cb, c_loss, raw_cb_t
             torch.cuda.empty_cache()
 
         scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(params, 1.0)
+        grad_norm = float(torch.nn.utils.clip_grad_norm_(params, 1.0))
         scaler.step(optim)
         scaler.update()
 
-        if step % args.log_every == 0 or step == 1:
+        if step % args.log_every == 0 or step == 1 or step == args.max_steps:
             rec = dict(
                 step=step,
-                retain_coeff=round(retain_coeff, 3),
-                cb_coeff=round(cb_coeff, 3),
-                retain_loss=r_loss_val,
-                cb_loss=c_loss_val,
+                retain_coeff=round(retain_coeff, 4),
+                cb_coeff=round(cb_coeff, 4),
+                retain_loss_raw=raw_retain,
+                cb_loss_raw=raw_cb,
+                retain_loss_scaled=scaled_retain,
+                cb_loss_scaled=scaled_cb,
                 cb_cosine=None if cos_now is None else round(cos_now, 4),
+                retain_loss_norm=None if raw_retain is None else raw_retain / (norm_r or 1.0),
+                cb_loss_norm=None if raw_cb is None else raw_cb / (norm_c or 1.0),
+                kl_raw=raw_kl,
+                kl_scaled=None if raw_kl is None else retain_coeff * args.kl_coeff * raw_kl,
+                norm_retain_div=norm_r,
+                norm_cb_div=norm_c,
+                grad_norm=round(grad_norm, 4),
+                elapsed_s=round(time.time() - t0, 1),
+                peak_mem_gb=round(torch.cuda.max_memory_allocated() / 1e9, 2),
             )
             log.append(rec)
             print(rec, flush=True)
-            # Only warn once at the checkpoint step if the *run so far* never
-            # left the stuck-at-1 regime (batch_size=1 makes single spikes normal).
+            # Flush the log every time so a crash/OOM still leaves a record.
+            write_json(run_dir / "train_log.json", dict(meta, log=log, status="running"))
             if (
                 cos_now is not None
                 and step == 50
@@ -490,44 +635,53 @@ def train(args):
                     flush=True,
                 )
 
-        if args.save_every and step % args.save_every == 0:
-            ckpt = Path(args.output_dir) / f"step{step}"
+        if args.save_every and step % args.save_every == 0 and step < args.max_steps:
+            ckpt = run_dir / f"step{step}"
             model.save_pretrained(str(ckpt))
             print(f"checkpoint -> {ckpt}", flush=True)
             torch.cuda.empty_cache()
 
-    out = Path(args.output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(str(out / "adapter"))
-    processor.save_pretrained(str(out / "adapter"))
-    with open(out / "train_log.json", "w") as f:
-        json.dump(
-            dict(
-                args=vars(args),
-                target_layers=target_layers,
-                n_harmful_cb=len(harmful),
-                n_retain=len(retain),
-                log=log,
-            ),
-            f,
-            indent=1,
-        )
-    print(f"adapter + log saved to {out}")
+    model.save_pretrained(str(run_dir / "adapter"))
+    processor.save_pretrained(str(run_dir / "adapter"))
+    write_json(
+        run_dir / "train_log.json",
+        dict(meta, log=log, status="done", train_minutes=round((time.time() - t0) / 60, 2)),
+    )
+    print(f"adapter + log saved to {run_dir}")
 
     if args.merge:
         merged = model.merge_and_unload()
-        merged.save_pretrained(str(out / "merged"))
-        processor.save_pretrained(str(out / "merged"))
-        print(f"merged model saved to {out / 'merged'}")
+        merged.save_pretrained(str(run_dir / "merged"))
+        processor.save_pretrained(str(run_dir / "merged"))
+        print(f"merged model saved to {run_dir / 'merged'}")
 
 
-if __name__ == "__main__":
+def build_argparser():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--run-name", required=True, help="results go to <runs-dir>/<run-name>/")
+    ap.add_argument("--runs-dir", default="out/runs")
+    ap.add_argument("--smoke", action="store_true", help="10 steps, log every step, no checkpoints")
     ap.add_argument("--model", default="Qwen/Qwen2-VL-2B-Instruct")
     ap.add_argument("--manifest", default="data/manifest_train.json")
     ap.add_argument("--image-root", default=".")
-    ap.add_argument("--output-dir", default="out/qwen2vl-cb")
-    ap.add_argument("--target-layers", default="", help="comma list; default = depth-scaled 10,20")
+    ap.add_argument("--target-layers", default="9,18", help="comma list of hidden-state indices")
+    ap.add_argument(
+        "--retain-layers",
+        default="targets",
+        help="targets | all | every:K | full  (hidden-state indices for the retain L2)",
+    )
+    ap.add_argument(
+        "--kl-coeff",
+        type=float,
+        default=0.0,
+        help="weight of KL(frozen||LoRA) on retain-batch response tokens (0 = off)",
+    )
+    ap.add_argument(
+        "--normalize-losses",
+        action="store_true",
+        help="divide retain L2 and CB loss by their step-1 raw values (KL is not normalized)",
+    )
+    ap.add_argument("--norm-floor", type=float, default=1e-2, help="min divisor for --normalize-losses")
     ap.add_argument("--alpha", type=float, default=10.0, help="lorra_alpha")
     ap.add_argument(
         "--cb-coeff-floor",
@@ -535,9 +689,9 @@ if __name__ == "__main__":
         default=0.2,
         help="minimum fraction of alpha kept on CB loss (prevents end-of-run CB=0)",
     )
-    ap.add_argument("--max-steps", type=int, default=500)
+    ap.add_argument("--max-steps", type=int, default=200)
     ap.add_argument("--batch-size", type=int, default=1, help="use 1 on T4 16GB")
-    ap.add_argument("--lr", type=float, default=2e-4)
+    ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--lora-alpha", type=int, default=16)
     ap.add_argument("--lora-b-init", type=float, default=1e-3, help="noise on lora_B to break zero-grad at init")
@@ -550,8 +704,8 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-response-chars", type=int, default=800)
     ap.add_argument("--log-every", type=int, default=10)
-    ap.add_argument("--save-every", type=int, default=100)
-    ap.add_argument("--gradient-checkpointing", action="store_true", default=True)
+    ap.add_argument("--save-every", type=int, default=0, help="0 = only save the final adapter")
+    ap.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--merge", action="store_true", help="also save merged full model")
     ap.add_argument(
         "--filter-complying",
@@ -561,8 +715,19 @@ if __name__ == "__main__":
     )
     ap.add_argument(
         "--complying-cache",
-        default="out/qwen2vl-cb/complying_cache.json",
-        help="cache base-model comply/refusal labels so filter is not re-run",
+        default="out/complying_cache.json",
+        help="base-model comply/refusal labels, shared by all runs (same data, greedy decoding)",
     )
-    args = ap.parse_args()
-    train(args)
+    return ap
+
+
+def apply_smoke(args):
+    if args.smoke:
+        args.max_steps = 10
+        args.log_every = 1
+        args.save_every = 0
+    return args
+
+
+if __name__ == "__main__":
+    train(apply_smoke(build_argparser().parse_args()))

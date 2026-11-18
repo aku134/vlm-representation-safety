@@ -12,6 +12,10 @@ INCLUDE = [
     ROOT / "data" / "manifest_train.json",
     ROOT / "data" / "manifest_eval.json",
     ROOT / "outputs" / "ocr_results.json",
+    ROOT / "data" / "manifest_train_pairs.json",  # only exists after Task 6 review
+    ROOT / "scripts" / "run_experiment.sh",
+    ROOT / "scripts" / "compare_runs.py",
+    ROOT / "scripts" / "plot_curves.py",
 ]
 SRC_FILES = [
     "train_cb_vlm.py",
@@ -21,6 +25,7 @@ SRC_FILES = [
     "train_probe.py",
     "eval_cb.py",
     "perturb_eval.py",
+    "judge.py",
 ]
 
 
